@@ -56,6 +56,7 @@ DEFINE_GUID(GUID_DEVINTERFACE_COMPORT,0x86e0d1e0, 0x8089, 0x11d0, 0x9c, 0xe4, 0x
 #include <string>
 #include <codecvt>
 #include <locale>
+#include <iostream>
 
 using convert_t = std::codecvt_utf8<wchar_t>;
 static std::wstring_convert<convert_t, wchar_t> strconverter;
@@ -185,7 +186,31 @@ void SerialIO::enumSerialPorts(std::vector<SerialPortInformation>& serialPorts) 
 	SetupDiDestroyDeviceInfoList(hDevInfoSet);
 
 #else
+#ifdef __APPLE__
+	DIR* dir = opendir("/dev/");
+	if (!dir) return;
 
+	struct dirent* entry;
+	struct stat statbuf;
+
+	while ((entry = readdir(dir))) {
+		std::string deviceRoot = "/dev/" + std::string(entry->d_name);
+		int rv = lstat(deviceRoot.c_str(), &statbuf);
+
+		if (rv == -1) {
+			std::cerr << "error stating: errno=" << errno << std::endl;
+			continue;
+		}
+
+		if (strstr(deviceRoot.c_str(), "tty.usbserial")) {
+			std::string name = "/dev/" + std::string(entry->d_name);
+			SerialPortInformation prt;
+			quicka2w(name, prt.portName);
+			serialPorts.push_back(prt);
+		}
+	}
+	closedir(dir);
+#else
 	DIR* dir = opendir("/sys/class/tty");
 	if (!dir) return;
 
@@ -257,6 +282,7 @@ void SerialIO::enumSerialPorts(std::vector<SerialPortInformation>& serialPorts) 
 		}
 	}
 	closedir(dir);
+#endif	
 #endif
 }
 

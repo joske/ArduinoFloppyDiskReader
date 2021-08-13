@@ -9,7 +9,7 @@
 CC = g++
 
 # define any compile-time flags
-CFLAGS = -Wall -std=c++14 -Wno-psabi -O3
+CFLAGS = -Wall -std=c++14 -Wno-psabi -O3 -m32
 
 # define any directories containing header files other than /usr/include
 #
@@ -18,7 +18,7 @@ INCLUDES = -I../lib
 # define library paths in addition to /usr/lib
 #   if I wanted to include libraries not in /usr/lib I'd specify
 #   their path using -Lpath, something like:
-LFLAGS = -L../lib
+LFLAGS = -L../lib -arch arm64
 
 # define any libraries to link into executable:
 #   if I want to link in libraries (libx.so or libx.a) I use the -llibname 
