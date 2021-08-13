@@ -44,7 +44,12 @@ DEFINE_GUID(GUID_DEVINTERFACE_COMPORT,0x86e0d1e0, 0x8089, 0x11d0, 0x9c, 0xe4, 0x
 #include <sys/ioctl.h>
 #include <errno.h>
 #include <cstring>
+#ifdef _LINUX
 #include <linux/serial.h>
+#elif __APPLE__
+#include <IOKit/serial/IOSerialKeys.h>
+#include <IOKit/serial/ioss.h>
+#endif
 
 #endif
 
@@ -442,8 +447,8 @@ if (baud == 9600) {
 	term.c_cflag |= CBAUDEX;
 	if (cfsetspeed(&term, baud) < 0) return Response::rUnknownError; 
 #endif
-#endif
 }
+#endif
 	// Apply that nonsense
 	tcflush (m_portHandle, TCIFLUSH);
 	if (tcsetattr(m_portHandle, TCSANOW, &term) != 0) return Response::rUnknownError;
@@ -473,9 +478,13 @@ unsigned int SerialIO::getBytesWaiting() {
 	if (!ClearCommError(m_portHandle, &errors, &comstatbuffer)) return 0;
 	return comstatbuffer.cbInQue;
 #else
+#ifdef __APPLE__
+	return 1;
+#else
 	int waiting;
 	if (ioctl(m_portHandle, TIOCINQ, &waiting) < 0) return 0;
 	return (unsigned int)waiting;
+#endif
 #endif
 }
 
