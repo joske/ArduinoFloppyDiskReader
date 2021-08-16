@@ -202,7 +202,7 @@ void SerialIO::enumSerialPorts(std::vector<SerialPortInformation>& serialPorts) 
 			continue;
 		}
 
-		if (strstr(deviceRoot.c_str(), "tty.usbserial")) {
+		if (strstr(deviceRoot.c_str(), "cu.usbserial")) {
 			std::string name = "/dev/" + std::string(entry->d_name);
 			SerialPortInformation prt;
 			quicka2w(name, prt.portName);
@@ -316,6 +316,7 @@ SerialIO::Response SerialIO::openPort(const std::wstring& portName) {
 	quickw2a(portName, apath);
 	m_portHandle = open(apath.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
 	if (m_portHandle == -1) {
+		std::cerr << "error opening serial port: " << errno << std::endl;
 		switch (errno) {
 		case ENOENT: return Response::rNotFound;
 		case EBUSY: return Response::rInUse;
@@ -330,6 +331,12 @@ SerialIO::Response SerialIO::openPort(const std::wstring& portName) {
 	ioctl(m_portHandle, TIOCEXCL);
 #endif
 
+#ifdef __APPLE__
+	if (fcntl(m_portHandle, F_SETFL, 0) == -1) {
+        printf("[FAIL] : fcntl failed\n");
+        return Response::rUnknownError;
+    }
+#endif
 	updateTimeouts();
 	return Response::rOK;
 #endif
@@ -456,6 +463,7 @@ SerialIO::Response SerialIO::configurePort(const Configuration& configuration) {
 	// Now try to set the baud rate
 	int baud = configuration.baudRate;
 #ifdef __APPLE__
+	// this sets non-standard baud rates
 	if (ioctl(m_portHandle, IOSSIOSPEED, &baud) == -1) return Response::rUnknownError;
 #else
 if (baud == 9600) {
@@ -487,7 +495,6 @@ if (baud == 9600) {
 
 	setDTR(false);
 
-
 	return Response::rOK;
 #endif
 
@@ -504,13 +511,14 @@ unsigned int SerialIO::getBytesWaiting() {
 	if (!ClearCommError(m_portHandle, &errors, &comstatbuffer)) return 0;
 	return comstatbuffer.cbInQue;
 #else
-#ifdef __APPLE__
-	return 1;
-#else
 	int waiting;
+#ifdef __APPLE__
+	// TIOCINQ ioctl does not exist in macos, but this should do the same? This seems to be the POSIX way.
+	if (ioctl(m_portHandle, FIONREAD, &waiting) < 0) return 0;
+#else
 	if (ioctl(m_portHandle, TIOCINQ, &waiting) < 0) return 0;
-	return (unsigned int)waiting;
 #endif
+	return (unsigned int)waiting;
 #endif
 }
 
